@@ -5,13 +5,7 @@ import cv2
 import os
 import random
 import numpy as np
-
-
-# from pycocotools.coco import COCO
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 #imort tensflow depenciies
 from tensorflow.keras.models import Model
@@ -32,10 +26,15 @@ POS_PATH = os.path.join("data", 'positive')
 NEG_PATH = os.path.join("data", 'negative')
 ANC_PATH = os.path.join("data", 'anchor')
 
-# os.makedirs(POS_PATH)
-# os.makedirs(NEG_PATH)
-# os.makedirs(ANC_PATH)
-# print(POS_PATH)
+os.makedirs(POS_PATH)
+os.makedirs(NEG_PATH)
+os.makedirs(ANC_PATH)
+print(POS_PATH)
+
+
+# ******************** PART 2: Collect Data **************************************
+# use collect_data.py to collect data
+
 
 # ****************** PART 3: Load and Preprocess Images ***************************
 
@@ -89,8 +88,6 @@ res = preprocess_twin(*exampple)
 # plt.imshow(res[1])
 # # print(res[2])
 # plt.show()
-
-
 
 # Build dataloader pipeline
 data = data.map(preprocess_twin)
@@ -158,11 +155,9 @@ def make_embedding():
     f1 = Flatten()(c4)
     d1 = Dense(4096, activation='sigmoid')(f1)
     
-    
     return Model(inputs=[inp], outputs=[d1], name='embedding')
 
 # print("********", f1)
-
 
 embedding = make_embedding()
 embedding.summary()
@@ -185,7 +180,6 @@ l1 = L1Dist()
 # l1(anchor_embedding, validation_embedding)
 
 
-
 # 4.3 Make Siamese Model
 input_image = Input(name='input_img', shape=(100,100,3))
 validation_image = Input(name='validation_img', shape=(100,100,3))
@@ -197,7 +191,6 @@ classifier = Dense(1, activation='sigmoid')(distances)
 # print(classifier)
 siamese_network = Model(inputs=[input_image, validation_image], outputs=classifier, name='SiameseNetwork')
 # siamese_network.summary()
-
 
 
 def make_siamese_model(): 
@@ -223,92 +216,89 @@ siamese_model = make_siamese_model()
 
 
 
+# ********************************* Part 5. Training *******************************
 
-# # ******************** 5. Training ***********************
-
-# # 5.1 Setup Loss and Optimizer
-# binary_cross_loss = tf.losses.BinaryCrossentropy()
-# opt = tf.keras.optimizers.Adam(1e-4) # 0.0001
-
-
-# # 5.2 Establish Checkpoints
-# checkpoint_dir = './training_checkpoints'
-# checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
-# checkpoint = tf.train.Checkpoint(opt=opt, siamese_model=siamese_model)
+# 5.1 Setup Loss and Optimizer
+binary_cross_loss = tf.losses.BinaryCrossentropy()
+opt = tf.keras.optimizers.Adam(1e-4) # 0.0001
 
 
-# # 5.3 Build Train Step Function
-# test_batch = train_data.as_numpy_iterator()
-# batch_1 = test_batch.next()
-# X = batch_1[:2]
-# y = batch_1[2]
-# print(y)
+# 5.2 Establish Checkpoints
+checkpoint_dir = './training_checkpoints'
+checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
+checkpoint = tf.train.Checkpoint(opt=opt, siamese_model=siamese_model)
 
 
-# @tf.function
-# def train_step(batch):
+# 5.3 Build Train Step Function
+test_batch = train_data.as_numpy_iterator()
+batch_1 = test_batch.next()
+X = batch_1[:2]
+y = batch_1[2]
+print(y)
+
+
+@tf.function
+def train_step(batch):
     
-#     # Record all of our operations 
-#     with tf.GradientTape() as tape:     
-#         # Get anchor and positive/negative image
-#         X = batch[:2]
-#         # Get label
-#         y = batch[2]
+    # Record all of our operations 
+    with tf.GradientTape() as tape:     
+        # Get anchor and positive/negative image
+        X = batch[:2]
+        # Get label
+        y = batch[2]
         
-#         # Forward pass
-#         yhat = siamese_model(X, training=True)
-#         # Calculate loss
-#         loss = binary_cross_loss(y, yhat)
-#     print(loss)
+        # Forward pass
+        yhat = siamese_model(X, training=True)
+        # Calculate loss
+        loss = binary_cross_loss(y, yhat)
+    print(loss)
         
-#     # Calculate gradients
-#     grad = tape.gradient(loss, siamese_model.trainable_variables)
+    # Calculate gradients
+    grad = tape.gradient(loss, siamese_model.trainable_variables)
     
-#     # Calculate updated weights and apply to siamese model
-#     opt.apply_gradients(zip(grad, siamese_model.trainable_variables))
+    # Calculate updated weights and apply to siamese model
+    opt.apply_gradients(zip(grad, siamese_model.trainable_variables))
         
-#     # Return loss
-#     return loss
+    # Return loss
+    return loss
 
 
-
-
-# # 5.4 Build Training Loop
-# # Import metric calculations
-# from tensorflow.keras.metrics import Precision, Recall
-# def train(data, EPOCHS):
-#     # Loop through epochs
-#     for epoch in range(1, EPOCHS+1):
-#         print('\n Epoch {}/{}'.format(epoch, EPOCHS))
-#         progbar = tf.keras.utils.Progbar(len(data))
+# 5.4 Build Training Loop
+# Import metric calculations
+from tensorflow.keras.metrics import Precision, Recall
+def train(data, EPOCHS):
+    # Loop through epochs
+    for epoch in range(1, EPOCHS+1):
+        print('\n Epoch {}/{}'.format(epoch, EPOCHS))
+        progbar = tf.keras.utils.Progbar(len(data))
         
-#         # Creating a metric object 
-#         r = Recall()
-#         p = Precision()
+        # Creating a metric object 
+        r = Recall()
+        p = Precision()
         
-#         # Loop through each batch
-#         for idx, batch in enumerate(data):
-#             # Run train step here
-#             loss = train_step(batch)
-#             yhat = siamese_model.predict(batch[:2])
-#             r.update_state(batch[2], yhat)
-#             p.update_state(batch[2], yhat) 
-#             progbar.update(idx+1)
-#         print(loss.numpy(), r.result().numpy(), p.result().numpy())
+        # Loop through each batch
+        for idx, batch in enumerate(data):
+            # Run train step here
+            loss = train_step(batch)
+            yhat = siamese_model.predict(batch[:2])
+            r.update_state(batch[2], yhat)
+            p.update_state(batch[2], yhat) 
+            progbar.update(idx+1)
+        print(loss.numpy(), r.result().numpy(), p.result().numpy())
         
-#         # Save checkpoints
-#         if epoch % 10 == 0: 
-#             checkpoint.save(file_prefix=checkpoint_prefix)
+        # Save checkpoints
+        if epoch % 10 == 0: 
+            checkpoint.save(file_prefix=checkpoint_prefix)
 
 
-# # 5.5 Train the model
-# EPOCHS = 50
-# train(train_data, EPOCHS)
+# 5.5 Train the model
+EPOCHS = 50
+train(train_data, EPOCHS)
 
 
 
 
-# ******************** 6. Evaluate Model ************************
+# **************************** Part 6. Evaluate Model ********************************
 
 # 6.1 Import Metrics
 
@@ -375,11 +365,10 @@ plt.show()
 
 
 
-
-# 7. Save Model
+# **************************** Part 7. Save Model ********************************
 
 # Save weights
-# siamese_model.save('siamesemodelv2.h5')
+siamese_model.save('siamesemodelv2.h5')
 # L1Dist
 
 
@@ -396,12 +385,7 @@ siamese_model.summary()
 
 
 
-
-
-
-
-
-
+# ******************************** Part 8. Inference ********************************
 
 # 8.1 Verification Function
 # path = '/home/shrishti/test_fra/application_data/verification_images'
@@ -444,6 +428,7 @@ while cap.isOpened():
     
     # Verification trigger
     if cv2.waitKey(10) & 0xFF == ord('v'):
+        
         # Save input image to application_data/input_image folder 
 #         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 #         h, s, v = cv2.split(hsv)
@@ -462,7 +447,6 @@ while cap.isOpened():
         # print("***********", results)
         
         
-        #################################################
         font = cv2.FONT_HERSHEY_SIMPLEX
         org = (50, 50)
         fontScale = 0.5
@@ -479,10 +463,7 @@ while cap.isOpened():
                         fontScale, color, thickness, cv2.LINE_AA)
             cv2.imwrite("notmatched.png", image)
             
-            
-    ##########################################        
-            
-    
+       
     
     if cv2.waitKey(10) & 0xFF == ord('q'):
         break
