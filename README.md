@@ -44,5 +44,5 @@ Setup the environment
 <br>
 
 ### References
-- https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf
-- https://youtu.be/bK_k7eebGgc
+- [Paper](https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf)
+- [Code](https://youtu.be/bK_k7eebGgc)
